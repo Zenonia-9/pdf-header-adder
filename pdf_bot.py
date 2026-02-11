@@ -1,10 +1,19 @@
 import os
-import io
+import sys
 import shutil
+import subprocess
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from pdf_processor import add_image_header
-from config import BOT_TOKEN, INPUT_DIR, OUTPUT_DIR, HEADER_IMAGE
+from config import LOG_FILE, BOT_TOKEN, INPUT_DIR, OUTPUT_DIR, HEADER_IMAGE, ADMIN_ID
+import logging
+
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 
 # Ensure main folders exist
 os.makedirs(INPUT_DIR, exist_ok=True)
@@ -20,6 +29,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📄 Send me your PDFs one by one. When done, send /done to process all of them at once."
     )
+
+async def shutdown(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+
+    # Optional: check only YOUR user can shutdown
+    allowed_user_id = int(ADMIN_ID)  # <- replace with your Telegram ID
+    
+    if user_id != allowed_user_id:
+        await update.message.reply_text("❌ You are not allowed to shut me down.")
+        return
+
+    await update.message.reply_text("⚡ Shutting down...")
+
+    logging.info("Bot is shutting down by command")
+    
+    # await context.application.stop()
+    # logging.info("Polling stopped")
+    # await context.application.shutdown()
+
+    # Forcefully exit the EXE
+    logging.info("Bot process exiting")
+
+    # Kill EXE for real
+    subprocess.run(["taskkill", "/IM", "pdf_bot.exe", "/F"])
+    sys.exit(0)
 
 
 async def handle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -85,8 +119,14 @@ if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("shutdown", shutdown))
     app.add_handler(CommandHandler("done", done))
     app.add_handler(MessageHandler(filters.Document.PDF, handle_pdf))
 
     print("🤖 Bot is running...")
-    app.run_polling()
+
+    try:
+        logging.info("Bot started")
+        app.run_polling()
+    except KeyboardInterrupt:
+        logging.info("Bot manually stopped")
