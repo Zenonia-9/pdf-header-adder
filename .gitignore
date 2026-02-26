@@ -6,7 +6,4 @@ images/
 *.pyc
 .env
 *.pdf
-*.jpg
-*.jpeg
-*.png
 *.spec
